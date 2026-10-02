@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1e1e2e">
+<title>Home</title>
+<style>
+  :root { color-scheme: dark; background: #1e1e2e; color: #cdd6f4; font-family: ui-monospace, 'Cascadia Code', 'DejaVu Sans Mono', monospace; --muted: #9399b2; --accent: #89b4fa; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-width: 280px; min-height: 100svh; }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  main { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100svh; padding: 28px 20px 60px; }
+  .hero { width: min(520px, 76vw, max(160px, calc(100svh - 310px))); aspect-ratio: 1; flex: none; }
+  .identity { margin: 15px 0 24px; font-size: 10px; letter-spacing: .24em; color: var(--muted); text-transform: uppercase; }
+  .identity span { color: #7ebae4; }
+  .launcher { width: min(620px, 100%); }
+  form { position: relative; display: flex; align-items: center; min-height: 55px; border-bottom: 1px solid #45475a; transition: border-color 180ms; }
+  form:focus-within { border-color: #7f849c; }
+  .prompt { color: #89b4fa; font-size: 20px; margin-right: 15px; user-select: none; }
+  input { color: #cdd6f4; min-width: 0; width: 100%; padding: 12px 0; background: transparent; border: 0; outline: none; font: inherit; font-size: 17px; caret-color: var(--accent); }
+  input::placeholder { color: #9399b2; opacity: 1; font-size: 14px; }
+  button, a { -webkit-tap-highlight-color: transparent; }
+  .open { flex: none; border: 1px solid #585b70; border-radius: 5px; background: #262637; color: #cdd6f4; padding: 8px 12px; margin-left: 10px; cursor: pointer; font: inherit; font-size: 11px; }
+  .open:hover { background: #313244; border-color: var(--accent); }
+  .open[hidden] { display: none; }
+  .open kbd { margin-left: 9px; color: var(--accent); }
+  :focus-visible { outline: 2px solid #89b4fa; outline-offset: 5px; }
+  input:focus-visible { outline: none; }
+  .sites { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 29px; }
+  .site { position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 14px 3px 18px; color: #a6adc8; text-decoration: none; border-radius: 8px; transition: color 180ms, opacity 180ms, background 180ms, transform 180ms; }
+  .site svg, .site img { width: 25px; height: 25px; display: block; }
+  .site img { filter: grayscale(1); opacity: .8; transition: filter 180ms; }
+  .site-label { font-size: 10px; white-space: nowrap; }
+  .site::after { content: ''; position: absolute; bottom: 5px; width: 4px; height: 4px; border-radius: 50%; background: var(--brand); opacity: 0; transition: opacity 180ms; }
+  .site:hover, .site:focus-visible, .site.selected { color: var(--brand); background: #242435; transform: translateY(-2px); }
+  .site.selected::after { opacity: 1; }
+  .site.selected img, .site:hover img, .site:focus-visible img { filter: none; opacity: 1; }
+  .sites.filtering .site:not(.match) { opacity: .35; }
+  .sites.filtering .site:hover, .sites.filtering .site:focus-visible { opacity: 1; }
+  .status { min-height: 18px; margin: 18px 0 0; text-align: center; color: var(--muted); font-size: 10px; }
+  footer { position: absolute; bottom: 22px; text-align: center; color: #9399b2; font-size: 10px; }
+  kbd { font: inherit; }
+  footer span { margin: 0 10px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  @media (max-width: 480px) { .hero { width: min(520px, 76vw, max(140px, calc(100svh - 390px))); } .sites { grid-template-columns: repeat(3, 1fr); } main { padding-inline: 24px; } .sites { gap: 2px; margin-top: 23px; } .site-label { font-size: 9px; } .site svg, .site img { width: 22px; height: 22px; } .identity { margin-bottom: 16px; } footer span { margin: 0 5px; } }
+  @media (max-height: 530px) and (min-width: 650px) { main { flex-direction: row; gap: 40px; padding-bottom: 50px; } .hero { width: min(38vw, 72svh); } .identity { position: absolute; top: 10px; left: 24px; } .launcher { width: min(480px, 48vw); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+</style>
+<!-- Snowflake: Simon Frankau / Tim Cuthbertson.
+     Source: https://github.com/NixOS/nixos-artwork/tree/master/logo
+     License: https://creativecommons.org/licenses/by/4.0/
+     Shape sampled into blocks; colors adapted. -->
+</head>
+<body>
+<canvas id="scene" aria-hidden="true"></canvas>
+<main>
+  <div class="hero" aria-hidden="true"></div>
+  <h1 class="sr-only">Home — website launcher</h1>
+  <div class="identity" aria-hidden="true"><span>λ</span> &nbsp; <span id="identity">nix / home</span></div>
+  <section class="launcher" aria-label="Website launcher">
+    <form id="launch" role="search">
+      <label class="sr-only" for="query">Find a website or search the web</label>
+      <span class="prompt" aria-hidden="true">›</span>
+      <input id="query" type="text" placeholder="Type to launch" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" aria-describedby="status" autofocus>
+      <button class="open" id="open" type="submit" hidden><span id="action">Open</span><kbd aria-hidden="true">↵</kbd></button>
+    </form>
+    <nav id="sites" class="sites" aria-label="Favorite websites"></nav>
+    <p id="status" class="status" role="status" aria-live="polite">One match opens automatically.</p>
+  </section>
+  <footer><span><kbd>↑ ↓</kbd> choose</span><span><kbd>enter</kbd> open</span><span><kbd>esc</kbd> reset</span></footer>
+</main>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const logoSource = 'data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjwhLS0gQ3JlYXRlZCB3aXRoIElua3NjYXBlIChodHRwOi8vd3d3Lmlua3NjYXBlLm9yZy8pIC0tPgoKPHN2ZwogICB3aWR0aD0iNTM1IgogICBoZWlnaHQ9IjUzNSIKICAgdmlld0JveD0iMCAwIDUwMS41NjI1MSA1MDEuNTYyNDkiCiAgIGlkPSJzdmcyIgogICB2ZXJzaW9uPSIxLjEiCiAgIGlua3NjYXBlOnZlcnNpb249IjEuMy4yICgwOTFlMjBlZjBmLCAyMDIzLTExLTI1KSIKICAgc29kaXBvZGk6ZG9jbmFtZT0ibml4LXNub3dmbGFrZS1jb2xvdXJzLnN2ZyIKICAgeG1sbnM6aW5rc2NhcGU9Imh0dHA6Ly93d3cuaW5rc2NhcGUub3JnL25hbWVzcGFjZXMvaW5rc2NhcGUiCiAgIHhtbG5zOnNvZGlwb2RpPSJodHRwOi8vc29kaXBvZGkuc291cmNlZm9yZ2UubmV0L0RURC9zb2RpcG9kaS0wLmR0ZCIKICAgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiCiAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIgogICB4bWxuczpjYz0iaHR0cDovL2NyZWF0aXZlY29tbW9ucy5vcmcvbnMjIgogICB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iPgogIDxkZWZzCiAgICAgaWQ9ImRlZnM0Ij4KICAgIDxsaW5lYXJHcmFkaWVudAogICAgICAgaW5rc2NhcGU6Y29sbGVjdD0iYWx3YXlzIgogICAgICAgaWQ9ImxpbmVhckdyYWRpZW50NTU2MiI+CiAgICAgIDxzdG9wCiAgICAgICAgIHN0eWxlPSJzdG9wLWNvbG9yOiM2OTlhZDc7c3RvcC1vcGFjaXR5OjEiCiAgICAgICAgIG9mZnNldD0iMCIKICAgICAgICAgaWQ9InN0b3A1NTY0IiAvPgogICAgICA8c3RvcAogICAgICAgICBpZD0ic3RvcDU1NjYiCiAgICAgICAgIG9mZnNldD0iMC4yNDM0NTE5OCIKICAgICAgICAgc3R5bGU9InN0b3AtY29sb3I6IzdlYjFkZDtzdG9wLW9wYWNpdHk6MSIgLz4KICAgICAgPHN0b3AKICAgICAgICAgc3R5bGU9InN0b3AtY29sb3I6IzdlYmFlNDtzdG9wLW9wYWNpdHk6MSIKICAgICAgICAgb2Zmc2V0PSIxIgogICAgICAgICBpZD0ic3RvcDU1NjgiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50CiAgICAgICBpbmtzY2FwZTpjb2xsZWN0PSJhbHdheXMiCiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ1MDUzIj4KICAgICAgPHN0b3AKICAgICAgICAgc3R5bGU9InN0b3AtY29sb3I6IzQxNWU5YTtzdG9wLW9wYWNpdHk6MSIKICAgICAgICAgb2Zmc2V0PSIwIgogICAgICAgICBpZD0ic3RvcDUwNTUiIC8+CiAgICAgIDxzdG9wCiAgICAgICAgIGlkPSJzdG9wNTA1NyIKICAgICAgICAgb2Zmc2V0PSIwLjIzMTY4NjQ0IgogICAgICAgICBzdHlsZT0ic3RvcC1jb2xvcjojNGE2YmFmO3N0b3Atb3BhY2l0eToxIiAvPgogICAgICA8c3RvcAogICAgICAgICBzdHlsZT0ic3RvcC1jb2xvcjojNTI3N2MzO3N0b3Atb3BhY2l0eToxIgogICAgICAgICBvZmZzZXQ9IjEiCiAgICAgICAgIGlkPSJzdG9wNTA1OSIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlua3NjYXBlOmNvbGxlY3Q9ImFsd2F5cyIKICAgICAgIHhsaW5rOmhyZWY9IiNsaW5lYXJHcmFkaWVudDU1NjIiCiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ0MzI4IgogICAgICAgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiCiAgICAgICBncmFkaWVudFRyYW5zZm9ybT0idHJhbnNsYXRlKDcwLjY1MDMzOSwtMTA1NS4xNTExKSIKICAgICAgIHgxPSIyMDAuNTk2NjgiCiAgICAgICB5MT0iMzUxLjQxMTE2IgogICAgICAgeDI9IjI5MC4wODcwMSIKICAgICAgIHkyPSI1MDYuMTg4MTQiIC8+CiAgICA8bGluZWFyR3JhZGllbnQKICAgICAgIGlua3NjYXBlOmNvbGxlY3Q9ImFsd2F5cyIKICAgICAgIHhsaW5rOmhyZWY9IiNsaW5lYXJHcmFkaWVudDUwNTMiCiAgICAgICBpZD0ibGluZWFyR3JhZGllbnQ0MzMwIgogICAgICAgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiCiAgICAgICBncmFkaWVudFRyYW5zZm9ybT0idHJhbnNsYXRlKDg2NC42OTU4OSwtMTQ5MS4zNDA1KSIKICAgICAgIHgxPSItNTg0LjE5OTM0IgogICAgICAgeTE9Ijc4Mi4zMzU2MyIKICAgICAgIHgyPSItNDk2LjI5NzAzIgogICAgICAgeTI9IjkzNy43MTM5OSIgLz4KICA8L2RlZnM+CiAgPHNvZGlwb2RpOm5hbWVkdmlldwogICAgIGlkPSJiYXNlIgogICAgIHBhZ2Vjb2xvcj0iI2ZmZmZmZiIKICAgICBib3JkZXJjb2xvcj0iIzY2NjY2NiIKICAgICBib3JkZXJvcGFjaXR5PSIxLjAiCiAgICAgaW5rc2NhcGU6cGFnZW9wYWNpdHk9IjAuMCIKICAgICBpbmtzY2FwZTpwYWdlc2hhZG93PSIyIgogICAgIGlua3NjYXBlOnpvb209IjAuNzA5MDQzNjgiCiAgICAgaW5rc2NhcGU6Y3g9Ijk5LjQyOTY5OSIKICAgICBpbmtzY2FwZTpjeT0iMTk1LjMzMzUyIgogICAgIGlua3NjYXBlOmRvY3VtZW50LXVuaXRzPSJweCIKICAgICBpbmtzY2FwZTpjdXJyZW50LWxheWVyPSJsYXllcjMiCiAgICAgc2hvd2dyaWQ9ImZhbHNlIgogICAgIGlua3NjYXBlOndpbmRvdy13aWR0aD0iMTkyMCIKICAgICBpbmtzY2FwZTp3aW5kb3ctaGVpZ2h0PSIxMDUwIgogICAgIGlua3NjYXBlOndpbmRvdy14PSIxOTIwIgogICAgIGlua3NjYXBlOndpbmRvdy15PSIzMCIKICAgICBpbmtzY2FwZTp3aW5kb3ctbWF4aW1pemVkPSIxIgogICAgIGlua3NjYXBlOnNuYXAtZ2xvYmFsPSJ0cnVlIgogICAgIGZpdC1tYXJnaW4tdG9wPSIwIgogICAgIGZpdC1tYXJnaW4tbGVmdD0iMCIKICAgICBmaXQtbWFyZ2luLXJpZ2h0PSIwIgogICAgIGZpdC1tYXJnaW4tYm90dG9tPSIwIgogICAgIGlua3NjYXBlOnNob3dwYWdlc2hhZG93PSIyIgogICAgIGlua3NjYXBlOnBhZ2VjaGVja2VyYm9hcmQ9IjAiCiAgICAgaW5rc2NhcGU6ZGVza2NvbG9yPSIjZDFkMWQxIiAvPgogIDxtZXRhZGF0YQogICAgIGlkPSJtZXRhZGF0YTciPgogICAgPHJkZjpSREY+CiAgICAgIDxjYzpXb3JrCiAgICAgICAgIHJkZjphYm91dD0iIj4KICAgICAgICA8ZGM6Zm9ybWF0PmltYWdlL3N2Zyt4bWw8L2RjOmZvcm1hdD4KICAgICAgICA8ZGM6dHlwZQogICAgICAgICAgIHJkZjpyZXNvdXJjZT0iaHR0cDovL3B1cmwub3JnL2RjL2RjbWl0eXBlL1N0aWxsSW1hZ2UiIC8+CiAgICAgIDwvY2M6V29yaz4KICAgIDwvcmRmOlJERj4KICA8L21ldGFkYXRhPgogIDxnCiAgICAgaW5rc2NhcGU6Z3JvdXBtb2RlPSJsYXllciIKICAgICBpZD0ibGF5ZXIzIgogICAgIGlua3NjYXBlOmxhYmVsPSJncmFkaWVudC1sb2dvIgogICAgIHN0eWxlPSJkaXNwbGF5OmlubGluZTtvcGFjaXR5OjEiCiAgICAgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTE1Ni40MTEyMSw5MzMuMzA2ODUpIj4KICAgIDxnCiAgICAgICBpZD0iZzIiCiAgICAgICB0cmFuc2Zvcm09Im1hdHJpeCgwLjk5OTk0MDU5LDAsMCwwLjk5OTk0MDU5LC0wLjA2MzIxNzk4LDMzLjE4ODM3NykiCiAgICAgICBzdHlsZT0ic3Ryb2tlLXdpZHRoOjEuMDAwMDYiPgogICAgICA8cGF0aAogICAgICAgICBzb2RpcG9kaTpub2RldHlwZXM9ImNjY2NjY2NjY2MiCiAgICAgICAgIGlua3NjYXBlOmNvbm5lY3Rvci1jdXJ2YXR1cmU9IjAiCiAgICAgICAgIGlkPSJwYXRoMzMzNi02IgogICAgICAgICBkPSJtIDMwOS41NDg5MiwtNzEwLjM4ODI3IDEyMi4xOTY4MywyMTEuNjc1MTIgLTU2LjE1NzA2LDAuNTI2OCAtMzIuNjIzNiwtNTYuODY5MiAtMzIuODU2NDUsNTYuNTY1MyAtMjcuOTAyMzcsLTAuMDExIC0xNC4yOTA4NiwtMjQuNjg5NiA0Ni44MTA0NywtODAuNDkwMSAtMzMuMjI5NDYsLTU3LjgyNTcgeiIKICAgICAgICAgc3R5bGU9Im9wYWNpdHk6MTtmaWxsOnVybCgjbGluZWFyR3JhZGllbnQ0MzI4KTtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6ZXZlbm9kZDtzdHJva2U6bm9uZTtzdHJva2Utd2lkdGg6My4wMDAxODtzdHJva2UtbGluZWNhcDpidXR0O3N0cm9rZS1saW5lam9pbjpyb3VuZDtzdHJva2UtbWl0ZXJsaW1pdDo0O3N0cm9rZS1kYXNoYXJyYXk6bm9uZTtzdHJva2Utb3BhY2l0eToxIiAvPgogICAgICA8dXNlCiAgICAgICAgIGhlaWdodD0iMTAwJSIKICAgICAgICAgd2lkdGg9IjEwMCUiCiAgICAgICAgIHRyYW5zZm9ybT0icm90YXRlKDYwLDQwNy4xMTE1NSwtNzE1Ljc4NzI0KSIKICAgICAgICAgaWQ9InVzZTM0MzktNiIKICAgICAgICAgaW5rc2NhcGU6dHJhbnNmb3JtLWNlbnRlci15PSIxNTEuNTkwODIiCiAgICAgICAgIGlua3NjYXBlOnRyYW5zZm9ybS1jZW50ZXIteD0iMTI0LjQzMDQ1IgogICAgICAgICB4bGluazpocmVmPSIjcGF0aDMzMzYtNiIKICAgICAgICAgeT0iMCIKICAgICAgICAgeD0iMCIKICAgICAgICAgc3R5bGU9InN0cm9rZS13aWR0aDoxLjAwMDA2IiAvPgogICAgICA8dXNlCiAgICAgICAgIGhlaWdodD0iMTAwJSIKICAgICAgICAgd2lkdGg9IjEwMCUiCiAgICAgICAgIHRyYW5zZm9ybT0icm90YXRlKC02MCw0MDcuMzExNzcsLTcxNS43MDAxNikiCiAgICAgICAgIGlkPSJ1c2UzNDQ1LTAiCiAgICAgICAgIGlua3NjYXBlOnRyYW5zZm9ybS1jZW50ZXIteT0iNzUuNTczOTU4IgogICAgICAgICBpbmtzY2FwZTp0cmFuc2Zvcm0tY2VudGVyLXg9Ii0xNjguMjA2NTEiCiAgICAgICAgIHhsaW5rOmhyZWY9IiNwYXRoMzMzNi02IgogICAgICAgICB5PSIwIgogICAgICAgICB4PSIwIgogICAgICAgICBzdHlsZT0ic3Ryb2tlLXdpZHRoOjEuMDAwMDYiIC8+CiAgICAgIDx1c2UKICAgICAgICAgaGVpZ2h0PSIxMDAlIgogICAgICAgICB3aWR0aD0iMTAwJSIKICAgICAgICAgdHJhbnNmb3JtPSJyb3RhdGUoMTgwLDQwNy40MTg2OCwtNzE1Ljc1NjUpIgogICAgICAgICBpZD0idXNlMzQ0OS01IgogICAgICAgICBpbmtzY2FwZTp0cmFuc2Zvcm0tY2VudGVyLXk9Ii0xMzkuOTQ1OTIiCiAgICAgICAgIGlua3NjYXBlOnRyYW5zZm9ybS1jZW50ZXIteD0iNTkuNjY5NzA1IgogICAgICAgICB4bGluazpocmVmPSIjcGF0aDMzMzYtNiIKICAgICAgICAgeT0iMCIKICAgICAgICAgeD0iMCIKICAgICAgICAgc3R5bGU9InN0cm9rZS13aWR0aDoxLjAwMDA2IiAvPgogICAgICA8cGF0aAogICAgICAgICBzdHlsZT0iY29sb3I6IzAwMDAwMDtjbGlwLXJ1bGU6bm9uemVybztkaXNwbGF5OmlubGluZTtvdmVyZmxvdzp2aXNpYmxlO3Zpc2liaWxpdHk6dmlzaWJsZTtvcGFjaXR5OjE7aXNvbGF0aW9uOmF1dG87bWl4LWJsZW5kLW1vZGU6bm9ybWFsO2NvbG9yLWludGVycG9sYXRpb246c1JHQjtjb2xvci1pbnRlcnBvbGF0aW9uLWZpbHRlcnM6bGluZWFyUkdCO3NvbGlkLWNvbG9yOiMwMDAwMDA7c29saWQtb3BhY2l0eToxO2ZpbGw6dXJsKCNsaW5lYXJHcmFkaWVudDQzMzApO2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpldmVub2RkO3N0cm9rZTpub25lO3N0cm9rZS13aWR0aDozLjAwMDE4O3N0cm9rZS1saW5lY2FwOmJ1dHQ7c3Ryb2tlLWxpbmVqb2luOnJvdW5kO3N0cm9rZS1taXRlcmxpbWl0OjQ7c3Ryb2tlLWRhc2hhcnJheTpub25lO3N0cm9rZS1kYXNob2Zmc2V0OjA7c3Ryb2tlLW9wYWNpdHk6MTtjb2xvci1yZW5kZXJpbmc6YXV0bztpbWFnZS1yZW5kZXJpbmc6YXV0bztzaGFwZS1yZW5kZXJpbmc6YXV0bzt0ZXh0LXJlbmRlcmluZzphdXRvO2VuYWJsZS1iYWNrZ3JvdW5kOmFjY3VtdWxhdGUiCiAgICAgICAgIGQ9Im0gMzA5LjU0ODkyLC03MTAuMzg4MjcgMTIyLjE5NjgzLDIxMS42NzUxMiAtNTYuMTU3MDYsMC41MjY4IC0zMi42MjM2LC01Ni44NjkyIC0zMi44NTY0NSw1Ni41NjUzIC0yNy45MDIzNywtMC4wMTEgLTE0LjI5MDg2LC0yNC42ODk2IDQ2LjgxMDQ3LC04MC40OTAxIC0zMy4yMjk0NiwtNTcuODI1NiB6IgogICAgICAgICBpZD0icGF0aDQyNjAtMCIKICAgICAgICAgaW5rc2NhcGU6Y29ubmVjdG9yLWN1cnZhdHVyZT0iMCIKICAgICAgICAgc29kaXBvZGk6bm9kZXR5cGVzPSJjY2NjY2NjY2NjIiAvPgogICAgICA8dXNlCiAgICAgICAgIGhlaWdodD0iMTAwJSIKICAgICAgICAgd2lkdGg9IjEwMCUiCiAgICAgICAgIHRyYW5zZm9ybT0icm90YXRlKDEyMCw0MDcuMzM5MTYsLTcxNi4wODM1NikiCiAgICAgICAgIGlkPSJ1c2U0MzU0LTUiCiAgICAgICAgIHhsaW5rOmhyZWY9IiNwYXRoNDI2MC0wIgogICAgICAgICB5PSIwIgogICAgICAgICB4PSIwIgogICAgICAgICBzdHlsZT0iZGlzcGxheTppbmxpbmU7c3Ryb2tlLXdpZHRoOjEuMDAwMDYiIC8+CiAgICAgIDx1c2UKICAgICAgICAgaGVpZ2h0PSIxMDAlIgogICAgICAgICB3aWR0aD0iMTAwJSIKICAgICAgICAgdHJhbnNmb3JtPSJyb3RhdGUoLTEyMCw0MDcuMjg4MjMsLTcxNS44Njk5NSkiCiAgICAgICAgIGlkPSJ1c2U0MzYyLTIiCiAgICAgICAgIHhsaW5rOmhyZWY9IiNwYXRoNDI2MC0wIgogICAgICAgICB5PSIwIgogICAgICAgICB4PSIwIgogICAgICAgICBzdHlsZT0iZGlzcGxheTppbmxpbmU7c3Ryb2tlLXdpZHRoOjEuMDAwMDYiIC8+CiAgICA8L2c+CiAgPC9nPgo8L3N2Zz4K';
+const icons = {
+  youtube: '<path fill="currentColor" d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.7 4.6 12 4.6 12 4.6s-5.7 0-7.5.5a3 3 0 0 0-2.1 2.1A31 31 0 0 0 2 12a31 31 0 0 0 .4 4.8 3 3 0 0 0 2.1 2.1c1.8.5 7.5.5 7.5.5s5.7 0 7.5-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 22 12a31 31 0 0 0-.4-4.8ZM10 15.5v-7l6 3.5Z"/>',
+  github: '<path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.86c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.64-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02A9.6 9.6 0 0 1 12 6.82c.85 0 1.71.11 2.51.34 1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.75c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/>',
+  protonmail: '<path fill="currentColor" d="m15.24 8.998 3.656-3.073v15.81H2.482C1.11 21.735 0 20.609 0 19.223V6.944l7.58 6.38a2.186 2.186 0 0 0 2.871-.042l4.792-4.284h-.003zm-5.456 3.538 1.809-1.616a2.438 2.438 0 0 1-1.178-.533L.905 2.395A.552.552 0 0 0 0 2.826v2.811l8.226 6.923a1.186 1.186 0 0 0 1.558-.024zM23.871 2.463a.551.551 0 0 0-.776-.068l-3.199 2.688v16.653h1.623c1.371 0 2.481-1.127 2.481-2.513V2.824a.551.551 0 0 0-.129-.36z"/>', 
+  forgejo: '<g transform="scale(.1132075) translate(6 6)" fill="none" stroke="currentColor"><path stroke-width="25" d="M58 168V70a50 50 0 0 1 50-50h20M58 168v-30a50 50 0 0 1 50-50h20"/><g stroke-width="15"><circle cx="142" cy="20" r="18"/><circle cx="142" cy="88" r="18"/><circle cx="58" cy="180" r="18"/></g></g>',
+  chatgpt: '<path fill="currentColor" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/>' 
+};
+// Proton Mail and ChatGPT icon paths: Simple Icons (CC0),
+// https://github.com/simple-icons/simple-icons (OpenAI path from v14.15.0).
+// Forgejo artwork: https://git.bonsai.cool/assets/img/logo.svg (colors adapted).
+// Edit this list to change the presets. All artwork stays local.
+const sites = [
+  {id: 'youtube', name: 'YouTube', url: 'https://www.youtube.com/', aliases: ['yt', 'video'], color: '#ff4545'},
+  {id: 'protonmail', name: 'Proton Mail', url: 'https://mail.proton.me/u/0/inbox', aliases: ['protonmail', 'proton', 'mail', 'email', 'inbox', 'pm'], color: '#b59bff'},
+  {id: 'mynixos', name: 'MyNixOS', url: 'https://mynixos.com/', aliases: ['my', 'nix', 'nixos', 'packages', 'options'], color: '#89b4fa'},
+  {id: 'github', name: 'GitHub', url: 'https://github.com/', aliases: ['gh', 'git', 'code'], color: '#cba6f7'},
+  {id: 'forgejo', name: 'Forgejo', url: 'https://git.bonsai.cool/', aliases: ['fj', 'forge', 'bonsai', 'git.bonsai.cool', 'git'], color: '#ff9955'},
+  {id: 'chatgpt', name: 'ChatGPT', url: 'https://chatgpt.com/', aliases: ['chat', 'gpt', 'ai', 'openai'], color: '#8cdec8'}
+];
+let matches = [], selected = null;
+const query = $('query');
+for (const site of sites) {
+  const link = document.createElement('a');
+  link.className = 'site'; link.href = site.url; link.dataset.site = site.id;
+  link.style.setProperty('--brand', site.color);
+  link.innerHTML = (site.id === 'mynixos' ? `<img src="${logoSource}" alt="">` : `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[site.id]}</svg>`) + `<span class="site-label">${site.name}</span>`;
+  site.element = link; $('sites').append(link);
+}
+function rank(site, value) {
+  const words = [site.name.toLowerCase(), ...site.aliases];
+  if (words.some(word => word === value)) return 3;
+  if (words.some(word => word.startsWith(value))) return 2;
+  return words.some(word => word.includes(value)) ? 1 : 0;
+}
+function updateSelection(recompute = true) {
+  cancelPendingOpen();
+  const value = query.value.trim().toLowerCase();
+  if (recompute) {
+    matches = value ? sites.filter(site => rank(site, value)).sort((a, b) => rank(b, value) - rank(a, value)) : [];
+    selected = matches[0] || null;
+  }
+  $('sites').classList.toggle('filtering', Boolean(value));
+  for (const site of sites) {
+    site.element.classList.toggle('match', matches.includes(site));
+    site.element.classList.toggle('selected', site === selected);
+    if (site === selected) site.element.setAttribute('aria-current', 'true');
+    else site.element.removeAttribute('aria-current');
+  }
+  $('open').hidden = !value;
+  $('action').textContent = selected ? 'Open' : 'Search';
+  $('open').setAttribute('aria-label', selected ? `Open ${selected.name}` : 'Search DuckDuckGo');
+  $('status').textContent = selected ? `${new URL(selected.url).hostname} · enter to open` : value ? 'No matching site · enter to search DuckDuckGo' : 'One match opens automatically.';
+  $('identity').textContent = selected ? `${selected.name} / ready` : 'nix / home';
+  document.documentElement.style.setProperty('--accent', selected?.color || '#89b4fa');
+  setScene(selected?.id || 'home');
+}
+let composing = false, pendingOpen = null;
+function cancelPendingOpen() {
+  if (pendingOpen) cancelAnimationFrame(pendingOpen.frame);
+  pendingOpen = null;
+}
+function finishPendingOpen() {
+  const pending = pendingOpen;
+  if (!pending || pending.frame || (!ready && !artworkFailed) || transition || document.hidden) return;
+  // Give the completed canvas a paint before leaving the page.
+  pending.frame = requestAnimationFrame(() => {
+    pending.frame = requestAnimationFrame(() => {
+      pending.frame = 0;
+      if (pendingOpen !== pending || transition || document.hidden) return;
+      if (composing || query.value !== pending.query || selected !== pending.site || mode !== pending.site.id) {
+        cancelPendingOpen(); return;
+      }
+      pendingOpen = null;
+      location.assign(pending.site.url);
+    });
+  });
+}
+function queueOpen(site) {
+  cancelPendingOpen();
+  pendingOpen = {site, query: query.value, frame: 0};
+  $('status').textContent = `Opening ${site.name}…`;
+  finishPendingOpen();
+}
+function handleQueryInput() {
+  updateSelection();
+  if (!composing && matches.length === 1) queueOpen(selected);
+}
+query.addEventListener('compositionstart', () => { composing = true; cancelPendingOpen(); });
+query.addEventListener('compositionend', () => { composing = false; handleQueryInput(); });
+query.addEventListener('input', event => {
+  if (event.isComposing) { updateSelection(); return; }
+  handleQueryInput();
+});
+$('launch').addEventListener('submit', event => {
+  event.preventDefault();
+  if (composing || event.isComposing) return;
+  const value = query.value.trim();
+  if (!value) return;
+  if (selected) queueOpen(selected);
+  else location.assign(`https://duckduckgo.com/?q=${encodeURIComponent(value)}`);
+});
+query.addEventListener('keydown', event => {
+  if (event.isComposing) return;
+  if (['ArrowDown', 'ArrowUp'].includes(event.key) && matches.length) {
+    event.preventDefault();
+    const direction = event.key === 'ArrowDown' ? 1 : -1;
+    selected = matches[(matches.indexOf(selected) + direction + matches.length) % matches.length];
+    updateSelection(false);
+  }
+});
+document.addEventListener('keydown', event => {
+  if (event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.key === 'Escape') {
+    event.preventDefault(); query.value = ''; updateSelection(); query.focus(); return;
+  }
+  const editing = event.target.closest('input, textarea, [contenteditable="true"]');
+  if (!editing && event.key.length === 1 && event.key !== ' ') {
+    event.preventDefault(); query.focus(); query.value += event.key; handleQueryInput();
+  }
+});
+
+const canvas = $('scene'), ctx = canvas.getContext('2d');
+const motion = matchMedia('(prefers-reduced-motion: reduce)');
+const fixedValue = new URLSearchParams(location.search).get('t');
+const fixed = fixedValue !== null && Number.isFinite(Number(fixedValue));
+const SPEED = .7, MORPH_SPEED = SPEED * 2 / 3, GRID = 64;
+const clamp = x => Math.max(0, Math.min(1, x));
+const mix = (a, b, t) => a + (b - a) * t;
+function noise(x, y) { const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return n - Math.floor(n); }
+const blue = [82, 119, 195], lightBlue = [126, 186, 228], white = [245, 240, 245];
+const lambdaPath = new Path2D('M0 0 122.19683 211.67512 66.03977 212.20192 33.41617 155.33272 .55972 211.89802 -27.34265 211.88702 -41.63351 187.19742 5.17696 106.70732 -28.0525 48.88162Z');
+// Keep the extra lambdas near the edges so the launcher stays readable.
+const ambient = [
+  [.09,.15,37,-.35], [.24,.08,21,.8], [.79,.12,33,.4], [.92,.27,23,-.6],
+  [.07,.48,22,.55], [.88,.53,39,-.25], [.15,.77,32,-.6], [.80,.85,24,.6],
+  [.34,.93,18,-.2], [.95,.83,18,.4],
+  [.04,.08,20,.6], [.17,.30,28,-.9], [.04,.66,18,.3], [.25,.88,25,.9],
+  [.15,.94,17,-.4], [.05,.91,31,-.7], [.94,.08,19,-.3], [.85,.32,27,.75],
+  [.96,.44,17,-.8], [.94,.67,29,.5], [.73,.94,21,-.5], [.87,.96,16,.8],
+  [.38,.045,16,.45], [.63,.065,23,-.6], [.025,.34,15,-.2], [.98,.95,15,.25]
+];
+let particles = [], targets = {}, width = 0, height = 0, hero = null;
+let time = fixed ? Math.max(0, Number(fixedValue)) : motion.matches ? 3.5 : 0;
+let elapsed = 0, last = 0, frame = 0, mode = 'home', transition = null, ready = false, artworkFailed = false;
+function homePosition(p) {
+  if (p.ambient !== undefined) {
+    const [ax, ay, size, rotation] = ambient[p.ambient];
+    const drift = motion.matches || fixed ? 0 : elapsed;
+    const angle = rotation + Math.sin(drift * .13 + p.ambient) * .06;
+    const dx = (p.x - 6) * size / 22, dy = (p.y - 11) * size / 22;
+    return {x: ax * width + Math.cos(angle) * dx - Math.sin(angle) * dy + Math.sin(drift * .2 + p.ambient) * 5,
+      y: ay * height + Math.sin(angle) * dx + Math.cos(angle) * dy + Math.cos(drift * .16 + p.ambient) * 7,
+      size: size / 22, alpha: .12 + noise(p.ambient, 2) * .10, color: p.color};
+  }
+  const step = hero.width / GRID;
+  const targetY = hero.top + p.y * step;
+  const progress = clamp((time - p.delay) / p.duration);
+  const startY = -step * (2 + p.random * 8);
+  return {x: hero.left + p.x * step, y: mix(startY, targetY, progress * progress),
+    size: step - .45, alpha: time < p.delay ? 0 : 1,
+    color: progress === 1 && time - p.delay - p.duration < .1 * SPEED ? white : p.color};
+}
+function sitePosition(p) {
+  const points = targets[mode];
+  const target = points[Math.floor(p.order * points.length)];
+  const step = hero.width / GRID;
+  return {x: hero.left + target.x * step, y: hero.top + target.y * step,
+    size: step * target.size - .4, alpha: 1, color: target.color};
+}
+function destination(p) { return mode === 'home' || !targets[mode] ? homePosition(p) : sitePosition(p); }
+function paint() {
+  if (!hero) return;
+  ctx.clearRect(0, 0, width, height);
+  const complete = transition && elapsed - transition.start >= transition.duration;
+  if (complete) transition = null;
+  for (const p of particles) {
+    let state = destination(p);
+    if (transition && p.from) {
+      const raw = clamp((elapsed - transition.start - p.morphDelay) / p.morphDuration);
+      const ease = raw * raw * (3 - 2 * raw);
+      state = {x: mix(p.from.x, state.x, ease), y: mix(p.from.y, state.y, raw * raw),
+        size: mix(p.from.size, state.size, ease), alpha: mix(p.from.alpha, state.alpha, ease),
+        color: state.color.map((channel, i) => mix(p.from.color[i], channel, ease))};
+      if (raw > .96 && raw < 1) state.color = white;
+    }
+    p.current = state;
+    if (state.alpha <= 0) continue;
+    ctx.globalAlpha = state.alpha;
+    ctx.fillStyle = `rgb(${state.color.map(Math.round).join(',')})`;
+    // Keep the original falling trails during the introductory assembly.
+    if (!transition && mode === 'home' && p.ambient === undefined && time > p.delay && time < p.delay + p.duration) {
+      ctx.globalAlpha = .13; ctx.fillRect(state.x, state.y - state.size * 2, state.size, state.size * 2); ctx.globalAlpha = state.alpha;
+    }
+    ctx.fillRect(state.x, state.y, state.size, state.size);
+  }
+  ctx.globalAlpha = 1;
+  finishPendingOpen();
+}
+function tick(now) {
+  frame = 0;
+  const delta = Math.min((now - last) / 1000, .05); last = now;
+  if (!fixed) time = Math.min(3.5, time + delta);
+  elapsed += delta; paint();
+  // Drift only needs 30fps once the fast assembly has finished.
+  if (!motion.matches && !document.hidden && (!fixed || transition)) frame = requestAnimationFrame(schedule);
+}
+function schedule(now) {
+  if (!transition && time >= 3.5 && now - last < 1000 / 30) { frame = requestAnimationFrame(schedule); return; }
+  tick(now);
+}
+function wake() {
+  if (!ready || frame || document.hidden || motion.matches || (fixed && !transition)) return;
+  last = performance.now(); frame = requestAnimationFrame(schedule);
+}
+function setScene(next) {
+  if (next === mode) return;
+  if (ready) paint();
+  mode = next;
+  // Returning home never replays the introductory fall.
+  time = 3.5;
+  if (ready && !motion.matches) {
+    let duration = 0;
+    for (const p of particles) {
+      p.from = p.current;
+      p.morphDelay = (.22 * p.random + .28 * (1 - p.y / GRID)) * MORPH_SPEED;
+      p.morphDuration = (.56 + p.random * .24) * MORPH_SPEED;
+      duration = Math.max(duration, p.morphDelay + p.morphDuration);
+    }
+    transition = {start: elapsed, duration};
+  } else transition = null;
+  paint(); wake();
+}
+function resize() {
+  width = innerWidth; height = innerHeight;
+  const scale = Math.min(devicePixelRatio || 1, 2);
+  canvas.width = Math.round(width * scale); canvas.height = Math.round(height * scale);
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  hero = document.querySelector('.hero').getBoundingClientRect();
+  transition = null; paint();
+}
+function buildParticles(image) {
+  const sample = document.createElement('canvas'); sample.width = GRID; sample.height = GRID;
+  const sampleCtx = sample.getContext('2d', {willReadFrequently: true});
+  sampleCtx.drawImage(image, 0, 0, GRID, GRID);
+  const pixels = sampleCtx.getImageData(0, 0, GRID, GRID).data;
+  for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+    const i = (y * GRID + x) * 4;
+    if (pixels[i + 3] < 128) continue;
+    const random = noise(x, y);
+    particles.push({x, y, random, color: pixels[i + 1] > 145 ? lightBlue : blue,
+      delay: (.12 + (1 - y / GRID) * 1.15 + noise(x, 0) * .22 + random * .10) * SPEED,
+      duration: (.56 + random * .24) * SPEED});
+  }
+  for (let a = 0; a < ambient.length; a++) {
+    for (let y = 0; y < 22; y++) for (let x = 0; x < 17; x++) {
+      if (!sampleCtx.isPointInPath(lambdaPath, x * 10 - 42, y * 10)) continue;
+      particles.push({x, y, ambient: a, random: noise(x + a, y), color: a % 2 ? lightBlue : blue});
+    }
+  }
+  // Spatial ordering keeps the transformation legible instead of random static.
+  particles.sort((a, b) => (a.ambient === undefined ? a.x : ambient[a.ambient][0] * GRID) - (b.ambient === undefined ? b.x : ambient[b.ambient][0] * GRID) || a.y - b.y);
+  particles.forEach((p, i) => { p.order = i / particles.length; });
+}
+function sampleTarget(image, padding = 5) {
+  const sample = document.createElement('canvas'); sample.width = GRID; sample.height = GRID;
+  const context = sample.getContext('2d', {willReadFrequently: true});
+  context.drawImage(image, padding, padding, GRID - padding * 2, GRID - padding * 2);
+  const pixels = context.getImageData(0, 0, GRID, GRID).data;
+  const points = [];
+  for (let x = 0; x < GRID; x++) for (let y = 0; y < GRID; y++) {
+    const i = (y * GRID + x) * 4;
+    if (pixels[i + 3] >= 128) points.push({x, y, size: 1, color: [pixels[i], pixels[i + 1], pixels[i + 2]]});
+  }
+  return points;
+}
+function loadImage(source) {
+  return new Promise((resolve, reject) => {
+    const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = source;
+  });
+}
+async function buildTargets(logo) {
+  await Promise.all(sites.map(async site => {
+    if (site.id === 'mynixos') { targets[site.id] = sampleTarget(logo, 7); return; }
+    let artwork = icons[site.id].replaceAll('currentColor', site.color);
+    if (site.id === 'youtube') artwork = '<rect x="1" y="4.5" width="22" height="15" rx="4" fill="#ff3741"/><path d="M9.5 8 9.5 16 16.5 12Z" fill="#f5f0f5"/>';
+    if (site.id === 'protonmail') artwork = '<defs><linearGradient id="mail" x2="0.9" y2="1"><stop stop-color="#dfceff"/><stop offset="1" stop-color="#8960f5"/></linearGradient></defs>' + icons[site.id].replaceAll('currentColor', 'url(#mail)');
+    if (site.id === 'forgejo') artwork = '<g transform="scale(.1132075) translate(6 6)" fill="none"><path stroke="#ff9955" stroke-width="25" d="M58 168V70a50 50 0 0 1 50-50h20"/><path stroke="#ef6555" stroke-width="25" d="M58 168v-30a50 50 0 0 1 50-50h20"/><g stroke-width="15"><circle stroke="#ff9955" cx="142" cy="20" r="18"/><circle stroke="#ef6555" cx="142" cy="88" r="18"/><circle stroke="#ef6555" cx="58" cy="180" r="18"/></g></g>';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24">${artwork}</svg>`;
+    const image = await loadImage('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+    targets[site.id] = sampleTarget(image, site.id === 'youtube' ? 1 : 5);
+  }));
+}
+const logo = new Image();
+logo.onload = async () => {
+  buildParticles(logo);
+  try { await buildTargets(logo); }
+  catch (error) { console.error('Could not prepare a website animation.', error); }
+  ready = true; resize();
+  document.documentElement.dataset.ready = 'true'; wake();
+};
+logo.onerror = () => { artworkFailed = true; $('status').textContent = 'Artwork unavailable. Website shortcuts still work.'; finishPendingOpen(); };
+logo.src = logoSource;
+new ResizeObserver(resize).observe(document.querySelector('.hero'));
+window.addEventListener('resize', resize);
+document.addEventListener('visibilitychange', () => {
+  cancelAnimationFrame(frame); frame = 0;
+  if (!document.hidden) { wake(); finishPendingOpen(); }
+});
+motion.addEventListener('change', () => {
+  cancelAnimationFrame(frame); frame = 0; transition = null;
+  if (motion.matches) time = 3.5;
+  paint(); wake();
+});
+window.addEventListener('pageshow', () => { composing = false; updateSelection(); wake(); });
+</script>
+</body>
+</html>
